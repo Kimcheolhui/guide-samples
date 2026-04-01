@@ -34,6 +34,7 @@ echo "    Manifest: ${MANIFEST}"
 for i in $(seq 1 ${RUNS}); do
   JOB_NAME="dnsperf-${PHASE}-q${QPS}-run${i}"
   OUTPUT_DIR="${PROJECT_DIR}/results/${NODES}nodes/qps-${QPS}/${PHASE}/run${i}"
+  rm -rf "${OUTPUT_DIR}/raw"
   mkdir -p "${OUTPUT_DIR}/raw"
 
   echo ""
