@@ -1,3 +1,6 @@
 **/localdns/experiment/result/*
 *.pyc
 **/.venv/*
+
+
+.vscode/
