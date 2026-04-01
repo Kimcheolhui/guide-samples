@@ -99,7 +99,7 @@ DNS 쿼리 흐름을 정리하면 다음과 같습니다.
 
 ### LocalDNS란?
 
-LocalDNS는 AKS 각 노드에 `systemd` 서비스로 배포되는 **노드-레벨 DNS 캐싱 프록시**입니다. Kubernetes 커뮤니티의 [NodeLocal DNSCache](https://kubernetes.io/docs/tasks/administer-cluster/nodelocaldns/)와 동일한 개념을 AKS 관리형 기능으로 제공합니다.
+LocalDNS는 AKS 각 노드에 `systemd` 서비스로 배포되는 **노드-레벨 DNS 캐싱 프록시**입니다. Kubernetes 커뮤니티의 [NodeLocal DNSCache](https://kubernetes.io/docs/tasks/administer-cluster/nodelocaldns/)와 유사한 개념을 AKS 관리형 기능으로 제공합니다.
 
 ![LocalDNS 아키텍처](./img/localdns-flow.png)
 
@@ -107,13 +107,13 @@ Pod의 DNS 쿼리는 **동일 노드의 LocalDNS로 먼저 전달**되며, Cache
 
 ### 기존 문제 해결
 
-| 기존 문제              | LocalDNS 해결 방식                                                                                                                                               |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **트래픽 편중**        | 각 노드에서 로컬로 처리하여 CoreDNS 부하를 분산하고, CoreDNS로의 연결을 TCP로 전환하여 Pod 간 균등 분배                                                          |
-| **conntrack 소진**     | DNS 쿼리가 동일 노드 내에서 처리되어 conntrack 항목이 생성되지 않음. CoreDNS로의 TCP 연결은 종료 시 즉시 항목 삭제                                               |
-| **네트워크 홉 지연**   | Pod의 DNS 쿼리가 동일 노드의 LocalDNS에서 즉시 처리되므로 CoreDNS Pod까지의 네트워크 홉이 제거됨. 캐시 히트 시 네트워크 경유 없이 응답하여 지연 시간 대폭 감소   |
-| **Cross-AZ 통신 지연** | 캐시 히트 시 동일 노드에서 응답하므로 CoreDNS Pod이 다른 AZ에 있더라도 cross-AZ 통신이 발생하지 않아 DNS 쿼리의 AZ 간 트래픽을 최소화                            |
-| **장애 전파**          | Upstream DNS 장애 시 `serveStale` 설정을 통해 TTL이 만료된 캐시 응답을 일정 시간 동안 제공 가능 (best-effort 수준, 캐시 eviction으로 인해 보장되지 않을 수 있음) |
+| 기존 문제              | LocalDNS 해결 방식                                                                                                                                                |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **트래픽 편중**        | 각 노드에서 로컬로 처리하여 CoreDNS 부하를 분산하고, CoreDNS로의 연결을 TCP로 전환하여 Pod 간 균등 분배                                                           |
+| **conntrack 소진**     | DNS 쿼리의 노드-로컬 처리 비율이 높아져 CoreDNS 경유 트래픽과 관련 conntrack 부담을 줄일 수 있음. CoreDNS로의 TCP 연결은 UDP 대비 conntrack 체류 시간 관리에 유리 |
+| **네트워크 홉 지연**   | Pod의 DNS 쿼리가 동일 노드의 LocalDNS에서 즉시 처리되므로 CoreDNS Pod까지의 네트워크 홉이 제거됨. 캐시 히트 시 네트워크 경유 없이 응답하여 지연 시간 대폭 감소    |
+| **Cross-AZ 통신 지연** | 캐시 히트 시 동일 노드에서 응답하므로 CoreDNS Pod이 다른 AZ에 있더라도 cross-AZ 통신이 발생하지 않아 DNS 쿼리의 AZ 간 트래픽을 최소화                             |
+| **장애 전파**          | Upstream DNS 장애 시 `serveStale` 설정을 통해 TTL이 만료된 캐시 응답을 일정 시간 동안 제공 가능 (best-effort 수준, 캐시 eviction으로 인해 보장되지 않을 수 있음)  |
 
 ### 성능 비교 (10,000 QPS 부하 테스트)
 
@@ -145,7 +145,10 @@ AKS Engineering Blog에서 공개한 벤치마크 결과에 따르면, LocalDNS 
 
 > 고객 환경과 유사한 조건에서 LocalDNS 도입 전/후 비교 테스트를 수행한 결과를 정리합니다.
 
-(작성 예정)
+현재 실험 진행 중이며, 완료 후 아래 문서에 결과를 반영합니다.
+
+- 실험 계획: `./experiment/experiment-plan.md`
+- 실험 결과: `./experiment/experiment-result.md`
 
 ---
 
@@ -162,11 +165,11 @@ AKS Engineering Blog에서 공개한 벤치마크 결과에 따르면, LocalDNS 
 
 > [!WARNING]
 > LocalDNS는 [ACNS(Advanced Container Networking Services)](https://learn.microsoft.com/en-us/azure/aks/how-to-apply-fqdn-filtering-policies)의 FQDN 필터 정책과 호환되지 않습니다.  
-> 또한, Kubernetes의 NodeLocal DNSCache와 LocalDNS를 동시에 활성화하는 것은 권장되지 않습니다.
+> 또한, Kubernetes의 NodeLocal DNSCache와 AKS의 LocalDNS를 동시에 활성화하는 것은 권장되지 않습니다.
 
 ### Step 1: 설정 파일 작성
 
-`localdnsconfig.json` 파일을 작성합니다. 설정 파일 없이 활성화하면 AKS 기본 설정이 적용됩니다.
+`localdnsconfig.json` 파일을 작성합니다. ([MS Learn: Configure LocalDNS in Azure Kubernetes Service](https://learn.microsoft.com/en-us/azure/aks/localdns-custom))
 
 ```json
 {
@@ -238,11 +241,12 @@ LocalDNS는 **노드 풀 단위**로 활성화/비활성화됩니다. 활성화 
 
 | `max-surge` 설정 | 동작                                         |
 | ---------------- | -------------------------------------------- |
-| `1` (기본값)     | 노드를 한 대씩 순차적으로 reimage            |
+| `1` (예시)       | 노드를 한 대씩 순차적으로 reimage            |
 | `N` 또는 `N%`    | 최대 N대(또는 노드 풀의 N%)를 동시에 reimage |
 
 > [!NOTE]
 > surge 노드는 reimage 중 임시로 추가 생성되므로, 해당 수만큼의 compute 및 IP 쿼터가 필요합니다.
+> 실제 적용 전에는 노드 풀의 현재 `max-surge` 설정을 먼저 확인하세요.
 
 **새 노드 풀 생성 시:**
 
