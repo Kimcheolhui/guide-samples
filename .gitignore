@@ -1,0 +1,3 @@
+**/localdns/experiment/result/*
+*.pyc
+**/.venv/*

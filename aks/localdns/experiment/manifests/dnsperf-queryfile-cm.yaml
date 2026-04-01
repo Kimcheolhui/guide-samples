@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dnsperf
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dnsperf-queryfile
+  namespace: dnsperf
+data:
+  queryfile.txt: |
+    kubernetes.default.svc.cluster.local A
+    kube-dns.kube-system.svc.cluster.local A
+    api-gateway.app-a.svc.cluster.local A
+    user-service.app-a.svc.cluster.local A
+    order-service.app-a.svc.cluster.local A
+    payment-service.app-a.svc.cluster.local A
+    notification-service.app-a.svc.cluster.local A
+    product-catalog.app-b.svc.cluster.local A
+    inventory-service.app-b.svc.cluster.local A
+    search-service.app-b.svc.cluster.local A
+    recommendation-service.app-b.svc.cluster.local A
+    cache-service.app-b.svc.cluster.local A
+    auth-service.app-c.svc.cluster.local A
+    logging-service.app-c.svc.cluster.local A
+    monitoring-service.app-c.svc.cluster.local A
+    config-service.app-c.svc.cluster.local A
+    messaging-service.app-c.svc.cluster.local A
+    login.microsoftonline.com A
+    management.azure.com A
+    graph.microsoft.com A
+    vault.azure.net A
+    blob.core.windows.net A
+    table.core.windows.net A
+    queue.core.windows.net A
+    servicebus.windows.net A
+    database.windows.net A
+    azurecr.io A
+    microsoft.com A
+    google.com A
+    github.com A
+    amazonaws.com A
+    cloudflare.com A

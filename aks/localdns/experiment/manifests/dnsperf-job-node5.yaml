@@ -1,0 +1,69 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dnsperf
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dnsperf-baseline-run1
+  namespace: dnsperf
+spec:
+  parallelism: 250
+  completions: 250
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        app: dnsperf
+    spec:
+      nodeSelector:
+        agentpool: userpool
+      containers:
+      - name: dnsperf
+        image: guessi/dnsperf:latest
+        command: ["sh", "-c"]
+        args:
+        - |
+          DNS_SERVER=$(grep nameserver /etc/resolv.conf | head -1 | awk '{print $2}')
+          NODE_NAME=${NODE_NAME:-unknown}
+          POD_NAME=${POD_NAME:-unknown}
+
+          echo "=== dnsperf start ==="
+          echo "{\"node\": \"${NODE_NAME}\", \"pod\": \"${POD_NAME}\", \"dns_server\": \"${DNS_SERVER}\", \"phase\": \"start\"}"
+
+          dnsperf \
+            -s ${DNS_SERVER} \
+            -d /etc/dnsperf/queryfile.txt \
+            -l 60 \
+            -Q 40 \
+            -c 10 \
+            -S 10 \
+            -v \
+            2>&1
+
+          echo "=== dnsperf end ==="
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        volumeMounts:
+        - name: queryfile
+          mountPath: /etc/dnsperf
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+      volumes:
+      - name: queryfile
+        configMap:
+          name: dnsperf-queryfile
+      restartPolicy: Never
