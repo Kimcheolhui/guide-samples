@@ -10,7 +10,7 @@
 | ----------- | ----------------------------------------------------------------------------------- |
 | 비교 대상   | Baseline(LocalDNS 비활성화) vs LocalDNS                                             |
 | 비교 축     | 노드 수 5/10, Pod당 QPS 20/40/80/160                                                |
-| 주요 지표   | avg, p50, p95, p99 latency / achieved QPS / query loss                              |
+| 주요 지표   | avg, p50, p95, p99 latency / achieved QPS                                           |
 | 확인 포인트 | 부하 증가 시 latency 분포가 어떻게 변하는지, 노드 수 변화에 따라 효과 차이가 있는지 |
 
 ---
@@ -43,10 +43,10 @@ Kubernetes 버전 : 1.33.7
 
 > 노드 수에 따라 CoreDNS replica 수와 총 Pod 수가 변동한다.
 
-| 노드 수 | dnsperf Pod | CoreDNS replica (예상) |
-| ------- | ----------- | ---------------------- |
-| 5       | 250         | 2                      |
-| 10      | 500         | 3~4                    |
+| 노드 수 | dnsperf Pod | CoreDNS replica |
+| ------- | ----------- | --------------- |
+| 5       | 250         | 2               |
+| 10      | 500         | 3               |
 
 ### 2.3 클러스터 프로비저닝 (azd + Bicep)
 
@@ -134,7 +134,6 @@ Pod당 QPS를 4단계로 변경해 부하를 올리며, 각 조건은 3회 반�
 
 - Latency: avg, min, max, stddev, p50, p90, p95, p99 (ms)
 - 처리량: queries sent, queries completed, achieved QPS
-- 손실률: queries lost (%)
 
 | 산출물         | 경로                                                 |
 | -------------- | ---------------------------------------------------- |
