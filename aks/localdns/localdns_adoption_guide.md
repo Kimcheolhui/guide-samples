@@ -11,6 +11,7 @@
   - [기존 문제 해결](#기존-문제-해결)
   - [성능 비교](#성능-비교)
   - [기타 운영상 이점](#기타-운영상-이점)
+  - [Cilium 환경에서 NodeLocal DNSCache 대신 LocalDNS를 사용해야 하는 이유](#cilium-환경에서-nodelocal-dnscache-대신-localdns를-사용해야-하는-이유)
 - [LocalDNS 도입 전/후 성능 비교 테스트](#localdns-도입-전후-성능-비교-테스트)
 - [도입 가이드](#도입-가이드)
   - [사전 요구사항](#사전-요구사항)
@@ -99,7 +100,7 @@ DNS 쿼리 흐름을 정리하면 다음과 같습니다.
 
 ### LocalDNS란?
 
-LocalDNS는 AKS 각 노드에 `systemd` 서비스로 배포되는 **노드-레벨 DNS 캐싱 프록시**입니다. Kubernetes 커뮤니티의 [NodeLocal DNSCache](https://kubernetes.io/docs/tasks/administer-cluster/nodelocaldns/)와 유사한 개념을 AKS 관리형 기능으로 제공합니다.
+LocalDNS는 AKS 각 노드에 `systemd` 서비스로 배포되는 **노드-레벨 DNS 캐싱 프록시**입니다. Upstream Kubernetes의 [NodeLocal DNSCache](https://kubernetes.io/docs/tasks/administer-cluster/nodelocaldns/)와 유사한 개념을 AKS 관리형 기능으로 제공합니다.
 
 ![LocalDNS 아키텍처](./img/localdns-flow.png)
 
@@ -131,6 +132,50 @@ Pod의 DNS 쿼리는 **동일 노드의 LocalDNS로 먼저 전달**되며, Cache
   - `kubeDNSOverrides`, `vnetDNSOverrides`를 통해 클러스터/VNet DNS 동작을 세밀하게 제어 가능
 - **기존 애플리케이션 변경 불필요**
   - LocalDNS는 UDP로 수신하므로 Pod 설정 변경 없이 투명하게 적용
+
+### Cilium 환경에서 NodeLocal DNSCache 대신 LocalDNS를 사용해야 하는 이유
+
+[NodeLocal DNSCache](https://kubernetes.io/docs/tasks/administer-cluster/nodelocaldns/)는 Upstream Kubernetes에서 제공하는 노드-레벨 DNS 캐시로, 각 노드에 DaemonSet(Pod)으로 배포됩니다. LocalDNS와 목적은 동일하지만, LocalDNS는 AKS 관리형이자 노드 OS 레벨 `systemd` 서비스이고 NodeLocal DNSCache는 사용자가 직접 배포/운영하는 Kubernetes 워크로드라는 점에서 다릅니다.
+
+AKS에서 Azure CNI Overlay + Cilium을 사용하면 **kube-proxy replacement가 기본으로 활성화**됩니다. 이 환경에서는 Upstream Kubernetes의 NodeLocal DNSCache가 정상적으로 동작하지 않으며, LocalDNS가 이를 대체하는 AKS 네이티브 솔루션입니다.
+
+#### NodeLocal DNSCache가 동작하지 않는 원인
+
+NodeLocal DNSCache는 각 노드에 DaemonSet으로 배포되어, `kube-dns` Service ClusterIP로 향하는 DNS 트래픽을 **iptables 규칙과 dummy 인터페이스를 통해 가로채는 방식**으로 동작합니다.
+
+그러나 Cilium kube-proxy replacement 환경에서는 **eBPF가 Pod의 veth 인터페이스(또는 socket 레벨)에서 Service VIP 해석을 먼저 수행**합니다. 즉, Pod가 kube-dns ClusterIP로 DNS 쿼리를 보내면 Cilium이 이를 곧바로 CoreDNS Pod의 실제 IP로 번역해버리므로, NodeLocal DNSCache가 기대하는 iptables 기반 가로채기 경로가 **무력화**됩니다.
+
+```
+[NodeLocal DNSCache가 기대하는 흐름]
+Pod → kube-dns ClusterIP → (iptables 가로채기) → NodeLocal DNSCache
+
+[Cilium kube-proxy replacement에서 실제 흐름]
+Pod → kube-dns ClusterIP → (eBPF가 먼저 Service 해석) → CoreDNS Pod 직접 연결
+                                                    ↑ NodeLocal DNSCache 우회됨
+```
+
+#### 우회 방법과 그 한계
+
+Cilium 환경에서 NodeLocal DNSCache를 사용하기 위한 우회 방법이 존재하지만, 모두 일정 수준의 운영 복잡도를 수반합니다.
+
+| 우회 방법                           | 설명                                                                                                      | 한계                                                                                                                                                                                                 |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **CiliumLocalRedirectPolicy (LRP)** | Cilium CRD를 사용하여 kube-dns Service 트래픽을 같은 노드의 NodeLocal DNSCache Pod로 eBPF 레벨에서 재배선 | NodeLocal DNSCache DaemonSet의 배포 옵션 변경 필요 (`hostNetwork: false`, `setupiptables=false`, `setupinterface=false` 등). AKS managed Cilium에서 `localRedirectPolicies` 설정 노출 여부 확인 필요 |
+| **`dnsPolicy: None`**               | Pod spec에서 DNS 서버를 NodeLocal DNSCache의 로컬 IP로 직접 지정하여 Service VIP 경로를 우회              | 모든 Pod에 개별적으로 `dnsConfig` 설정 필요. search domain도 수동 지정해야 하므로 클러스터 규모에서 관리가 어려움                                                                                    |
+
+#### LocalDNS가 이 문제를 근본적으로 해결하는 이유
+
+LocalDNS는 Kubernetes Pod이 아닌 **노드의 `systemd` 서비스**로 동작하며, Pod의 `resolv.conf`가 LocalDNS의 link-local 주소(`169.254.10.10`/`169.254.10.11`)를 직접 참조하도록 AKS가 자동 구성합니다. 따라서 kube-dns Service VIP를 경유하지 않으므로 **Cilium의 Service 해석 경로와 충돌하지 않습니다**.
+
+| 비교 항목         | NodeLocal DNSCache (Cilium 환경)                   | LocalDNS                                         |
+| ----------------- | -------------------------------------------------- | ------------------------------------------------ |
+| **Cilium 호환성** | 추가 구성(LRP 등) 없이는 동작하지 않음             | 충돌 없이 동작                                   |
+| **구성 방식**     | DaemonSet 배포 + LRP CRD 또는 Pod별 dnsPolicy 변경 | `az aks nodepool update --localdns-config` 한 줄 |
+| **워크로드 수정** | LRP 미사용 시 모든 Pod에 `dnsPolicy: None` 필요    | 기존 워크로드 변경 불필요                        |
+| **관리 주체**     | 사용자가 직접 배포/운영                            | AKS 플랫폼이 관리                                |
+| **DNS 성능**      | LocalDNS와 동급 (0.1ms대, 차이 1~8%)               | -                                                |
+
+동등한 성능에 비해 운영 복잡도 차이가 크기 때문에, **Cilium 기반 AKS 클러스터에서는 NodeLocal DNSCache 대신 LocalDNS 사용을 권장**합니다.
 
 ---
 
