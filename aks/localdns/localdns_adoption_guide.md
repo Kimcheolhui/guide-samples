@@ -140,8 +140,8 @@ LocalDNS 도입 전/후 성능 비교 테스트를 수행한 환경과 테스트
 
 > 상세한 실험 계획과 결과 데이터는 아래 문서를 참고하세요.
 >
-> - 실험 계획: `./experiment/experiment-plan.md`
-> - 실험 결과: `./experiment/experiment-result.md`
+> - 실험 계획: `./localdns_performance_test/experiment-plan.md`
+> - 실험 결과: `./localdns_performance_test/experiment-result.md`
 
 ### 테스트 환경
 
