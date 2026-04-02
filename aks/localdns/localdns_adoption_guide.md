@@ -517,3 +517,5 @@ LocalDNS 적용 후 DNS 해석 실패 또는 지연이 발생하면, 다음 절�
 - [Azure Kubernetes Service에서 LocalDNS 구성](https://learn.microsoft.com/ko-kr/azure/aks/localdns-custom)
 - [Using NodeLocal DNSCache in Kubernetes Clusters](https://kubernetes.io/docs/tasks/administer-cluster/nodelocaldns/)
 - [AKS(Azure Kubernetes Service)에서 LocalDNS 문제 해결](https://learn.microsoft.com/ko-kr/troubleshoot/azure/azure-kubernetes/connectivity/dns/troubleshoot-localdns)
+- [Scaling DNS on AKS with Cilium: NodeLocal DNSCache, LRP, and FQDN Policies — Microsoft Tech Community](https://techcommunity.microsoft.com/blog/linuxandopensourceblog/scaling-dns-on-aks-with-cilium-nodelocal-dnscache-lrp-and-fqdn-policies/4486323)
+- [Cilium Issue #13040: NodeLocal DNSCache support with kube-proxy replacement](https://github.com/cilium/cilium/issues/13040)
