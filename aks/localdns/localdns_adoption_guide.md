@@ -228,12 +228,12 @@ LocalDNS 도입 전/후 성능 비교 테스트를 수행한 환경과 테스트
 | **VM SKU**          | 4 vCPU 이상                        |
 
 > [!WARNING]
-> LocalDNS는 [ACNS(Advanced Container Networking Services)](https://learn.microsoft.com/en-us/azure/aks/how-to-apply-fqdn-filtering-policies)의 FQDN 필터 정책과 호환되지 않습니다.  
+> LocalDNS는 [ACNS(Advanced Container Networking Services)](https://learn.microsoft.com/ko-kr/azure/aks/how-to-apply-fqdn-filtering-policies)의 FQDN 필터 정책과 호환되지 않습니다.  
 > 또한, Kubernetes의 NodeLocal DNSCache와 AKS의 LocalDNS를 동시에 활성화하는 것은 권장되지 않습니다.
 
 ### Step 1: 설정 파일 작성
 
-`localdnsconfig.json` 파일을 작성합니다. ([MS Learn: Configure LocalDNS in Azure Kubernetes Service](https://learn.microsoft.com/en-us/azure/aks/localdns-custom))
+`localdnsconfig.json` 파일을 작성합니다. ([Azure Kubernetes Service에서 LocalDNS 구성 — MS Learn](https://learn.microsoft.com/ko-kr/azure/aks/localdns-custom))
 
 ```json
 {
@@ -439,12 +439,27 @@ az aks nodepool update \
 
 LocalDNS에서 CoreDNS 또는 VNet DNS로의 포워딩에 TCP를 사용하는 경우, NSG(Network Security Group), 방화벽, NVA(Network Virtual Appliance)가 해당 TCP 트래픽을 차단하지 않는지 확인하세요.
 
+#### 문제 발생 시 진단 방법
+
+LocalDNS 적용 후 DNS 해석 실패 또는 지연이 발생하면, 다음 절차로 진단할 수 있습니다.
+
+1. **오류 패턴 식별**: 항상 발생하는지 간헐적인지, 모든 노드인지 특정 노드/AZ인지, 어떤 DNS 영역(cluster.local / .)이 실패하는지 확인
+2. **dnsutils Pod 배포**: 테스트 Pod를 배포하여 `dig` 명령으로 KubeDNS 경로(`169.254.10.11`)와 VnetDNS 경로(`169.254.10.10`)의 응답을 개별 확인
+3. **쿼리 로깅 활성화**: `localdnsconfig.json`에서 `queryLogging`을 `"Log"`로 변경하여 LocalDNS의 쿼리 로그를 수집 (프로덕션에서는 메모리 사용량 증가에 주의)
+4. **로그 확인**: 노드에 접속하여 `journalctl -u localdns`로 LocalDNS 서비스 로그를 확인
+
+> [!TIP]
+> `queryLogging` 변경도 노드 풀 업데이트(reimage)가 필요합니다. 특정 노드만 진단하려면 노드에 직접 접속하여 `/opt/azure/containers/localdns/localdns.corefile`의 `errors`를 `log`로 변경한 후 `systemctl restart localdns`로 일시적으로 로깅을 활성화할 수 있습니다 (reimage 시 원래 설정으로 복원됨).
+>
+> 상세한 트러블슈팅 절차는 [AKS에서 LocalDNS 문제 해결](https://learn.microsoft.com/ko-kr/troubleshoot/azure/azure-kubernetes/connectivity/dns/troubleshoot-localdns) 문서를 참고하세요.
+
 ---
 
 ## 참고자료
 
-- https://blog.aks.azure.com/2025/08/04/accelerate-dns-performance-with-localdns
-- https://learn.microsoft.com/en-us/azure/aks/dns-concepts#localdns-in-azure-kubernetes-service-preview
-- https://learn.microsoft.com/en-us/azure/aks/coredns-autoscale
-- https://learn.microsoft.com/en-us/azure/aks/localdns-custom
-- https://kubernetes.io/docs/tasks/administer-cluster/nodelocaldns/
+- [Accelerate DNS Performance with LocalDNS — AKS Engineering Blog](https://blog.aks.azure.com/2025/08/04/accelerate-dns-performance-with-localdns)
+- [Azure Kubernetes Service(AKS)에서의 DNS 해상도](https://learn.microsoft.com/ko-kr/azure/aks/dns-concepts#localdns-in-azure-kubernetes-service-preview)
+- [AKS(Azure Kubernetes Service)에서 CoreDNS 자동 크기 조정](https://learn.microsoft.com/ko-kr/azure/aks/coredns-autoscale)
+- [Azure Kubernetes Service에서 LocalDNS 구성](https://learn.microsoft.com/ko-kr/azure/aks/localdns-custom)
+- [Using NodeLocal DNSCache in Kubernetes Clusters](https://kubernetes.io/docs/tasks/administer-cluster/nodelocaldns/)
+- [AKS(Azure Kubernetes Service)에서 LocalDNS 문제 해결](https://learn.microsoft.com/ko-kr/troubleshoot/azure/azure-kubernetes/connectivity/dns/troubleshoot-localdns)
