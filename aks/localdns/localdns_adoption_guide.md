@@ -423,6 +423,15 @@ LocalDNS를 활성화(`Required`)하거나 설정을 변경하면 해당 노드 
 | **NodeLocal DNSCache**            | Kubernetes의 NodeLocal DNSCache와 LocalDNS를 동시에 활성화하면 모든 DNS 트래픽이 LocalDNS로만 라우팅되어 NodeLocal DNSCache의 이점이 사라지고, 예상치 못한 동작이 발생할 수 있습니다. |
 | **ForceTCP + serveStale: Verify** | `protocol`이 `ForceTCP`일 때 `serveStale`을 `Verify`로 설정할 수 없습니다. `Immediate`를 사용하세요.                                                                                  |
 
+> [!WARNING]
+> NodeLocal DNSCache는 `kube-system` 네임스페이스에 DaemonSet으로 배포됩니다. LocalDNS 도입 전 아래 명령으로 사용 여부를 확인하세요.
+>
+> ```bash
+> kubectl get daemonset -n kube-system -l k8s-app=node-local-dns
+> ```
+>
+> `node-local-dns` DaemonSet이 존재한다면 NodeLocal DNSCache가 활성화된 상태이므로, LocalDNS 활성화 전에 먼저 제거해야 합니다.
+
 #### VNet DNS 변경 시 수동 반영 필요
 
 Azure Portal이나 CLI에서 VNet의 커스텀 DNS 서버를 변경해도 AKS 노드에 **자동으로 반영되지 않습니다**. 변경 사항을 적용하려면 노드 풀을 별도로 업데이트해야 합니다.
