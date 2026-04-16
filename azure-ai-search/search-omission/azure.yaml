@@ -1,0 +1,7 @@
+name: search-omission-test
+metadata:
+  template: search-omission-test
+infra:
+  provider: bicep
+  path: infra
+  module: main
